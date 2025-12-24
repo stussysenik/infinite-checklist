@@ -1,6 +1,11 @@
 import type React from "react";
 import type { Metadata } from "next";
-import { Geist, Geist_Mono, Rubik_Spray_Paint } from "next/font/google";
+import {
+        Geist,
+        Geist_Mono,
+        Rubik_Spray_Paint,
+        Open_Sans,
+} from "next/font/google";
 import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
@@ -10,6 +15,10 @@ const _rubikSprayPaint = Rubik_Spray_Paint({
         weight: "400",
         subsets: ["latin"],
         variable: "--font-spraypaint",
+});
+const _openSans = Open_Sans({
+        subsets: ["latin"],
+        variable: "--font-opensans",
 });
 
 export const metadata: Metadata = {
@@ -32,6 +41,10 @@ export default function RootLayout({
         return (
                 <html lang="en">
                         <head>
+                                <meta
+                                        name="viewport"
+                                        content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no"
+                                />
                                 <link
                                         rel="icon"
                                         href="/icon.svg"
@@ -44,7 +57,7 @@ export default function RootLayout({
                                 />
                         </head>
                         <body
-                                className={`font-sans antialiased ${_rubikSprayPaint.variable}`}
+                                className={`font-sans antialiased ${_rubikSprayPaint.variable} ${_openSans.variable}`}
                         >
                                 {children}
                                 <Analytics />

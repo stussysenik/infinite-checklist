@@ -13,11 +13,10 @@ interface Todo {
         color?: string;
 }
 
-const initialTodos: Todo[] = [];
 const ARCHIVE_DELAY = 300; // 300ms for super instant feel
 
 export function InfiniteChecklist() {
-        const [todos, setTodos] = useState<Todo[]>(initialTodos);
+        const [todos, setTodos] = useState<Todo[]>([]);
         const [draggedId, setDraggedId] = useState<string | null>(null);
         const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
         const [isOverTrash, setIsOverTrash] = useState(false);
@@ -28,6 +27,7 @@ export function InfiniteChecklist() {
         const [showInput, setShowInput] = useState(false);
         const [inputFocusedViaShortcut, setInputFocusedViaShortcut] =
                 useState(false);
+        const DOUBLE_TAP_DELAY = 300; // ms between taps
         const [showPageIndicator, setShowPageIndicator] = useState(false);
         const [accentColor, setAccentColor] = useState<string>("#000000");
         const dragStartPos = useRef({ x: 0, y: 0 });
@@ -36,6 +36,8 @@ export function InfiniteChecklist() {
         const hasDragged = useRef(false);
         const DRAG_THRESHOLD = 12; // pixels to distinguish click from drag
         const archiveTimeouts = useRef<Record<string, NodeJS.Timeout>>({});
+        const lastTapTimeRef = useRef(0);
+        const lastClickTimeRef = useRef(0);
 
         // Generate random readable color with good contrast against white
         const generateRandomColor = () => {
@@ -62,10 +64,63 @@ export function InfiniteChecklist() {
                                 setAccentColor(generateRandomColor());
                         }
                 };
+                // Handle double-tap on mobile
+                const handleTouchStart = (e: TouchEvent) => {
+                        const currentTime = Date.now();
+                        const timeDiff = currentTime - lastTapTimeRef.current;
+
+                        // Check if this is a double-tap
+                        if (timeDiff < DOUBLE_TAP_DELAY && timeDiff > 0) {
+                                // Double-tap detected
+                                e.preventDefault();
+                                setShowInput(true);
+                                setInputFocusedViaShortcut(true);
+                                setTimeout(() => {
+                                        inputRef.current?.focus();
+                                }, 50);
+                                setTimeout(
+                                        () => setInputFocusedViaShortcut(false),
+                                        150,
+                                );
+                        }
+
+                        lastTapTimeRef.current = currentTime;
+                };
+
+                const handleClick = () => {
+                        const currentTime = Date.now();
+                        const timeDiff = currentTime - lastClickTimeRef.current;
+
+                        // Check if this is a double-click
+                        if (timeDiff < DOUBLE_TAP_DELAY && timeDiff > 0) {
+                                // Double-click detected
+                                setShowInput(true);
+                                setInputFocusedViaShortcut(true);
+                                setTimeout(() => {
+                                        inputRef.current?.focus();
+                                }, 50);
+                                setTimeout(
+                                        () => setInputFocusedViaShortcut(false),
+                                        150,
+                                );
+                        }
+
+                        lastClickTimeRef.current = currentTime;
+                };
 
                 window.addEventListener("keydown", handleKeyDown);
-                return () =>
+                window.addEventListener("touchstart", handleTouchStart, {
+                        passive: false,
+                });
+                window.addEventListener("click", handleClick);
+                return () => {
                         window.removeEventListener("keydown", handleKeyDown);
+                        window.removeEventListener(
+                                "touchstart",
+                                handleTouchStart,
+                        );
+                        window.removeEventListener("click", handleClick);
+                };
         }, []);
 
         // Load todos from localStorage on mount
@@ -74,31 +129,47 @@ export function InfiniteChecklist() {
                 if (savedTodos) {
                         try {
                                 const loadedTodos = JSON.parse(savedTodos);
-                                // Clear archived todos on mount to ensure archive starts empty
-                                const todosWithoutArchived = loadedTodos.map(
-                                        (todo: Todo) => ({
-                                                ...todo,
-                                                archived: false,
-                                        }),
-                                );
-                                setTodos(todosWithoutArchived);
+                                // Validate that loadedTodos is an array with valid todo items
+                                if (
+                                        Array.isArray(loadedTodos) &&
+                                        loadedTodos.every(
+                                                (todo) =>
+                                                        todo &&
+                                                        typeof todo.id ===
+                                                                "string" &&
+                                                        typeof todo.text ===
+                                                                "string" &&
+                                                        typeof todo.completed ===
+                                                                "boolean",
+                                        )
+                                ) {
+                                        // Clear archived todos on mount to ensure archive starts empty
+                                        const todosWithoutArchived =
+                                                loadedTodos.map(
+                                                        (todo: Todo) => ({
+                                                                ...todo,
+                                                                archived: false,
+                                                        }),
+                                                );
+                                        setTodos(todosWithoutArchived);
+                                } else {
+                                        // Invalid data, start with empty array
+                                        setTodos([]);
+                                }
                         } catch (e) {
                                 console.error(
                                         "Failed to load todos from localStorage",
                                         e,
                                 );
+                                // On error, start with empty array
+                                setTodos([]);
                         }
                 }
         }, []);
 
         // Save todos to localStorage whenever they change
         useEffect(() => {
-                if (todos.length > 0 || initialTodos.length > 0) {
-                        localStorage.setItem(
-                                "infinite-todos",
-                                JSON.stringify(todos),
-                        );
-                }
+                localStorage.setItem("infinite-todos", JSON.stringify(todos));
         }, [todos]);
 
         // Cleanup archive timeouts on unmount
@@ -284,14 +355,14 @@ export function InfiniteChecklist() {
 
         return (
                 <div
-                        className="flex flex-col h-screen bg-background overflow-hidden select-none relative"
+                        className="flex flex-col h-screen bg-background overflow-hidden select-none relative touch-optimized no-tap-highlight"
                         style={
                                 {
                                         backgroundImage: `
-          linear-gradient(to right, rgba(0, 0, 0, 0.05) 1px, transparent 1px),
-          linear-gradient(to bottom, rgba(0, 0, 0, 0.05) 1px, transparent 1px)
+          linear-gradient(to right, rgba(0, 0, 0, 0.03) 1px, transparent 1px),
+          linear-gradient(to bottom, rgba(0, 0, 0, 0.03) 1px, transparent 1px)
         `,
-                                        backgroundSize: "32px 32px",
+                                        backgroundSize: "16px 16px",
                                 } as React.CSSProperties
                         }
                         onMouseMove={handleDragMove}
@@ -299,15 +370,15 @@ export function InfiniteChecklist() {
                         onTouchMove={handleDragMove}
                         onTouchEnd={handleDragEnd}
                 >
-                        <div className="flex flex-col items-center justify-center h-1/4 relative w-full">
-                                <h1 className="font-spraypaint text-6xl md:text-8xl text-foreground tracking-tight text-center">
+                        <div className="flex flex-col items-center justify-center h-auto py-12 md:py-16 relative w-full">
+                                <h1 className="font-spraypaint text-5xl md:text-7xl text-foreground tracking-tight text-center leading-none">
                                         checklisting... ✅
                                 </h1>
 
                                 {/* Archive - Upper Right Corner */}
                                 {todos.some((t) => t.archived) && (
-                                        <div className="absolute top-4 right-4 md:top-6 md:right-6 flex flex-col gap-2 max-w-[300px] md:max-w-[400px]">
-                                                <div className="font-spraypaint text-sm md:text-base text-muted-foreground mb-1 border-b-2 border-foreground/20 pb-1">
+                                        <div className="absolute top-4 right-4 md:top-6 md:right-6 flex flex-col gap-3 max-w-[280px] md:max-w-[360px]">
+                                                <div className="font-spraypaint text-xs md:text-sm text-muted-foreground mb-2 border-b-2 border-border pb-2">
                                                         ARCHIVED
                                                 </div>
                                                 {todos
@@ -321,7 +392,7 @@ export function InfiniteChecklist() {
                                                                                 todo.id
                                                                         }
                                                                         className={cn(
-                                                                                "flex items-center gap-2 md:gap-3 cursor-grab active:cursor-grabbing transition-all duration-150 ease-out hover:scale-105 group bg-background/80 border-2 border-foreground/20 p-2 rounded-lg",
+                                                                                "touch-optimized no-tap-highlight flex items-center gap-2 md:gap-3 cursor-grab active:cursor-grabbing transition-all duration-200 ease-out hover:scale-102 group bg-background border-2 border-border p-2",
                                                                                 draggedId ===
                                                                                         todo.id &&
                                                                                         "opacity-0",
@@ -346,15 +417,15 @@ export function InfiniteChecklist() {
                                                                         }
                                                                 >
                                                                         <div
-                                                                                className="w-6 h-6 md:w-8 md:h-8 border-2 bg-muted-foreground/20 flex items-center justify-center flex-shrink-0"
+                                                                                className="w-5 h-5 md:w-6 md:h-6 border-2 border-border bg-muted flex items-center justify-center flex-shrink-0"
                                                                                 style={{
                                                                                         borderColor:
                                                                                                 todo.color,
                                                                                 }}
                                                                         >
                                                                                 <svg
-                                                                                        width="12"
-                                                                                        height="12"
+                                                                                        width="10"
+                                                                                        height="10"
                                                                                         viewBox="0 0 16 16"
                                                                                         fill="none"
                                                                                         style={{
@@ -371,10 +442,10 @@ export function InfiniteChecklist() {
                                                                                 </svg>
                                                                         </div>
                                                                         <span
-                                                                                className="font-sans text-sm md:text-base line-through truncate"
+                                                                                className="font-sans text-xs md:text-sm line-through truncate"
                                                                                 style={{
                                                                                         color: todo.color,
-                                                                                        opacity: 0.5,
+                                                                                        opacity: 0.4,
                                                                                 }}
                                                                         >
                                                                                 {
@@ -389,11 +460,15 @@ export function InfiniteChecklist() {
 
                         <div
                                 ref={scrollContainerRef}
-                                className="flex overflow-x-auto overflow-y-hidden h-3/4 items-center px-6 md:px-12 gap-8 scrollbar-hide relative touch-pan-x"
-                                style={{
-                                        scrollbarWidth: "none",
-                                        msOverflowStyle: "none",
-                                }}
+                                className="flex overflow-x-auto overflow-y-hidden flex-1 items-center px-4 md:px-8 gap-6 md:gap-8 scrollbar-hide relative touch-pan-x snap-x snap-mandatory"
+                                style={
+                                        {
+                                                scrollbarWidth: "none",
+                                                msOverflowStyle: "none",
+                                                WebkitOverflowScrolling:
+                                                        "touch",
+                                        } as React.CSSProperties
+                                }
                                 onWheel={(e) => {
                                         // Enable horizontal scroll with scrollwheel on desktop
                                         if (e.deltaY !== 0) {
@@ -407,7 +482,7 @@ export function InfiniteChecklist() {
                         >
                                 {todos.filter((todo) => !todo.archived).length >
                                 0 ? (
-                                        <div className="flex gap-8 md:gap-12 py-10 mx-auto">
+                                        <div className="flex gap-6 md:gap-12 py-6 md:py-8 mx-auto">
                                                 {todos
                                                         .filter(
                                                                 (todo) =>
@@ -419,7 +494,7 @@ export function InfiniteChecklist() {
                                                                                 todo.id
                                                                         }
                                                                         className={cn(
-                                                                                "flex-shrink-0 flex items-center gap-5 md:gap-6 group active:cursor-grabbing transition-all hover:translate-y-[-4px] hover:scale-105",
+                                                                                "shrink-0 flex items-center gap-3 md:gap-4 group active:cursor-grabbing snap-center transition-all duration-200 ease-out hover:-translate-y-1 hover:scale-102",
                                                                                 draggedId ===
                                                                                         todo.id &&
                                                                                         "opacity-0",
@@ -440,9 +515,9 @@ export function InfiniteChecklist() {
                                                                                         )
                                                                                 }
                                                                                 className={cn(
-                                                                                        "w-12 h-12 md:w-14 md:h-14 border-4 bg-background flex items-center justify-center flex-shrink-0 transition-all duration-150 ease-out hover:scale-110 active:scale-95 shadow-[4px_4px_0_0_rgba(0,0,0,0.2)] hover:shadow-[5px_5px_0_0_rgba(0,0,0,0.3)]",
+                                                                                        "touch-optimized no-tap-highlight w-9 h-9 md:w-12 md:h-12 border-2 md:border-3 bg-background flex items-center justify-center shrink-0 transition-all duration-200 ease-out hover:scale-105 active:scale-95 shadow-[3px_3px_0_0_rgba(0,0,0,1)] hover:shadow-[4px_4px_0_0_rgba(0,0,0,1)]",
                                                                                         todo.completed
-                                                                                                ? `scale-110 rotate-3`
+                                                                                                ? `scale-105 rotate-1`
                                                                                                 : "border-foreground",
                                                                                 )}
                                                                                 style={{
@@ -475,7 +550,7 @@ export function InfiniteChecklist() {
                                                                                 )}
                                                                         </button>
                                                                         <div
-                                                                                className="flex items-center cursor-grab"
+                                                                                className="flex items-center cursor-grab touch-optimized"
                                                                                 onMouseDown={(
                                                                                         e,
                                                                                 ) =>
@@ -497,9 +572,9 @@ export function InfiniteChecklist() {
                                                                         >
                                                                                 <span
                                                                                         className={cn(
-                                                                                                "font-spraypaint text-4xl md:text-5xl lg:text-6xl whitespace-nowrap transition-all duration-150 ease-out",
+                                                                                                "font-spraypaint text-3xl md:text-4xl lg:text-5xl whitespace-nowrap transition-all duration-200 ease-out",
                                                                                                 todo.completed
-                                                                                                        ? "text-muted-foreground opacity-50 scale-95 translate-x-1 line-through"
+                                                                                                        ? "text-muted-foreground opacity-40 scale-95 translate-x-1 line-through"
                                                                                                         : "scale-100 translate-x-0",
                                                                                         )}
                                                                                         style={{
@@ -516,14 +591,7 @@ export function InfiniteChecklist() {
                                                                 </div>
                                                         ))}
                                         </div>
-                                ) : (
-                                        <div className="flex items-center justify-center w-full h-full">
-                                                <p className="font-spraypaint text-3xl md:text-4xl text-muted-foreground text-center">
-                                                        Press ⌘A to add your
-                                                        first todo
-                                                </p>
-                                        </div>
-                                )}
+                                ) : null}
 
                                 {/* Page Indicator - Bottom Left */}
                                 {showPageIndicator &&
@@ -531,7 +599,7 @@ export function InfiniteChecklist() {
                                                 .length > 0 && (
                                                 <div className="absolute bottom-4 left-4 md:bottom-6 md:left-6 flex items-center gap-2">
                                                         <div
-                                                                className="w-2 h-2 md:w-2.5 md:h-2.5 rounded-full animate-pulse"
+                                                                className="w-2 h-2 md:w-2 md:h-2 rounded-full animate-pulse"
                                                                 style={{
                                                                         backgroundColor:
                                                                                 todos.find(
@@ -563,10 +631,11 @@ export function InfiniteChecklist() {
 
                                 {/* Minimal Inline Input - Appears after todo list */}
                                 {showInput && (
-                                        <div className="absolute bottom-4 left-1/2 -translate-x-1/2 animate-in fade-in slide-in-from-bottom-2 duration-200">
+                                        <div className="absolute bottom-6 left-1/2 -translate-x-1/2 animate-in fade-in slide-in-from-bottom-2 duration-200 w-full px-4 md:w-auto md:px-0 z-50">
                                                 <input
                                                         ref={inputRef}
                                                         type="text"
+                                                        inputMode="text"
                                                         value={newTodoText}
                                                         onChange={(e) =>
                                                                 setNewTodoText(
@@ -578,6 +647,11 @@ export function InfiniteChecklist() {
                                                                 setInputFocusedViaShortcut(
                                                                         false,
                                                                 );
+                                                        }}
+                                                        onTouchStart={(e) => {
+                                                                // Prevent zoom on iOS when focusing input
+                                                                e.preventDefault();
+                                                                inputRef.current?.focus();
                                                         }}
                                                         onKeyDown={(e) => {
                                                                 if (
@@ -617,32 +691,81 @@ export function InfiniteChecklist() {
                                                         }}
                                                         placeholder="+ Add new todo..."
                                                         className={cn(
-                                                                "w-64 md:w-80 px-4 py-2 text-sm border-2 bg-background/60 backdrop-blur-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:bg-background/90 focus:border-foreground/80 transition-all duration-100 ease-out font-sans",
+                                                                "no-tap-highlight w-full max-w-xs md:w-72 md:max-w-96 px-4 py-3 md:py-3 text-base md:text-sm border-2 md:border-2 bg-background/70 backdrop-blur-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:bg-background focus:border-foreground transition-all duration-200 ease-out font-sans touch-manipulation",
                                                                 inputFocusedViaShortcut
-                                                                        ? "border-foreground scale-105 shadow-[6px_6px_0_0_rgba(0,0,0,0.2)]"
-                                                                        : "border-transparent",
+                                                                        ? "border-foreground scale-105 shadow-[4px_4px_0_0_rgba(0,0,0,1)]"
+                                                                        : "border-border",
                                                         )}
                                                 />
                                         </div>
                                 )}
+
+                                {/* Empty State - Shows when no todos exist */}
+                                {!showInput &&
+                                        todos.filter((todo) => !todo.archived)
+                                                .length === 0 && (
+                                                <div className="flex flex-col items-center justify-center h-full text-center px-4">
+                                                        <div className="mb-8 text-5xl md:text-7xl opacity-20">
+                                                                📝
+                                                        </div>
+                                                        <h2 className="font-spraypaint text-2xl md:text-3xl text-foreground mb-3">
+                                                                No todos yet!
+                                                        </h2>
+                                                        <div className="bg-muted/40 rounded-lg p-5 md:p-6 backdrop-blur-sm border-2 border-border">
+                                                                <p className="font-sans text-sm md:text-base text-foreground font-medium mb-4">
+                                                                        Start by
+                                                                        adding
+                                                                        your
+                                                                        first
+                                                                        task
+                                                                </p>
+                                                                <div className="border-t border-border/50 pt-4">
+                                                                        <div className="flex flex-col gap-1 md:hidden">
+                                                                                <p className="font-sans text-xs text-muted-foreground font-semibold tracking-wide">
+                                                                                        📱
+                                                                                        Double-tap
+                                                                                        anywhere
+                                                                                        to
+                                                                                        add
+                                                                                </p>
+                                                                        </div>
+                                                                        <div className="hidden md:block">
+                                                                                <p className="font-sans text-sm text-muted-foreground font-semibold tracking-wide">
+                                                                                        ⌨️
+                                                                                        Press{" "}
+                                                                                        <kbd className="px-2 py-1 bg-background border-2 border-border rounded text-xs font-normal">
+                                                                                                Cmd
+                                                                                        </kbd>{" "}
+                                                                                        +{" "}
+                                                                                        <kbd className="px-2 py-1 bg-background border-2 border-border rounded text-xs font-normal">
+                                                                                                A
+                                                                                        </kbd>{" "}
+                                                                                        to
+                                                                                        add
+                                                                                </p>
+                                                                        </div>
+                                                                </div>
+                                                        </div>
+                                                </div>
+                                        )}
                         </div>
 
                         {draggedId && (
                                 <div
-                                        className="fixed pointer-events-none z-50 flex items-center gap-5 md:gap-6 transition-transform duration-75 ease-out"
+                                        className="fixed pointer-events-none z-50 flex items-center gap-4 md:gap-5 transition-transform duration-100 ease-out"
                                         style={{
                                                 left: dragStartPos.current.x,
                                                 top: dragStartPos.current.y,
                                                 transform: `translate(${dragPosition.x}px, ${dragPosition.y}px) rotate(${Math.min(
                                                         Math.abs(
                                                                 dragPosition.x,
-                                                        ) / 10,
-                                                        5,
-                                                )}deg) scale(1.05)`,
+                                                        ) / 12,
+                                                        3,
+                                                )}deg) scale(1.02)`,
                                         }}
                                 >
-                                        <div className="w-12 h-12 md:w-14 md:h-14 border-4 border-foreground bg-background shadow-[6px_6px_0_0_rgba(0,0,0,1)]"></div>
-                                        <span className="font-spraypaint text-4xl md:text-5xl text-foreground whitespace-nowrap">
+                                        <div className="w-10 h-10 md:w-12 md:h-12 border-3 md:border-4 border-foreground bg-background shadow-[4px_4px_0_0_rgba(0,0,0,1)]"></div>
+                                        <span className="font-spraypaint text-3xl md:text-4xl text-foreground whitespace-nowrap">
                                                 {
                                                         todos.find(
                                                                 (t) =>
