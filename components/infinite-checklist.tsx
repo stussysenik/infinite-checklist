@@ -1,343 +1,663 @@
-"use client"
+"use client";
 
-import type React from "react"
+import type React from "react";
 
-import { useState, useRef, useEffect } from "react"
-import { cn } from "@/lib/utils"
+import { useState, useRef, useEffect } from "react";
+import { cn } from "@/lib/utils";
 
 interface Todo {
-  id: string
-  text: string
-  completed: boolean
+        id: string;
+        text: string;
+        completed: boolean;
+        archived?: boolean;
 }
 
-const initialTodos: Todo[] = []
+const initialTodos: Todo[] = [];
+const ARCHIVE_DELAY = 300; // 300ms for super instant feel
 
 export function InfiniteChecklist() {
-  const [todos, setTodos] = useState<Todo[]>(initialTodos)
-  const [draggedId, setDraggedId] = useState<string | null>(null)
-  const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 })
-  const [isOverTrash, setIsOverTrash] = useState(false)
-  const [showAddModal, setShowAddModal] = useState(false)
-  const [newTodoText, setNewTodoText] = useState("")
-  const scrollContainerRef = useRef<HTMLDivElement>(null)
-  const dragStartPos = useRef({ x: 0, y: 0 })
-  const inputRef = useRef<HTMLInputElement>(null)
+        const [todos, setTodos] = useState<Todo[]>(initialTodos);
+        const [draggedId, setDraggedId] = useState<string | null>(null);
+        const [dragPosition, setDragPosition] = useState({ x: 0, y: 0 });
+        const [isOverTrash, setIsOverTrash] = useState(false);
+        const [showAddModal, setShowAddModal] = useState(false);
+        const [newTodoText, setNewTodoText] = useState("");
+        const [isDraggingFromArchive, setIsDraggingFromArchive] =
+                useState(false);
+        const [showPageIndicator, setShowPageIndicator] = useState(false);
+        const dragStartPos = useRef({ x: 0, y: 0 });
+        const inputRef = useRef<HTMLInputElement>(null);
+        const scrollContainerRef = useRef<HTMLDivElement>(null);
+        const hasDragged = useRef(false);
+        const DRAG_THRESHOLD = 12; // pixels to distinguish click from drag
+        const archiveTimeouts = useRef<Record<string, NodeJS.Timeout>>({});
 
-  const extendedTodos = todos.length > 0 ? [...todos, ...todos, ...todos] : []
+        useEffect(() => {
+                const handleKeyDown = (e: KeyboardEvent) => {
+                        if ((e.metaKey || e.ctrlKey) && e.key === "a") {
+                                e.preventDefault();
+                                setShowAddModal(true);
+                                setTimeout(() => {
+                                        inputRef.current?.focus();
+                                }, 100);
+                        }
+                        if (e.key === "Escape") {
+                                setShowAddModal(false);
+                                setNewTodoText("");
+                        }
+                };
 
-  useEffect(() => {
-    const handleKeyDown = (e: KeyboardEvent) => {
-      if ((e.metaKey || e.ctrlKey) && e.key === "a") {
-        e.preventDefault()
-        setShowAddModal(true)
-        setTimeout(() => {
-          inputRef.current?.focus()
-        }, 100)
-      }
-      if (e.key === "Escape") {
-        setShowAddModal(false)
-        setNewTodoText("")
-      }
-    }
+                window.addEventListener("keydown", handleKeyDown);
+                return () =>
+                        window.removeEventListener("keydown", handleKeyDown);
+        }, []);
 
-    window.addEventListener("keydown", handleKeyDown)
-    return () => window.removeEventListener("keydown", handleKeyDown)
-  }, [])
+        // Load todos from localStorage on mount
+        useEffect(() => {
+                const savedTodos = localStorage.getItem("infinite-todos");
+                if (savedTodos) {
+                        try {
+                                const loadedTodos = JSON.parse(savedTodos);
+                                // Clear archived todos on mount to ensure archive starts empty
+                                const todosWithoutArchived = loadedTodos.map(
+                                        (todo: Todo) => ({
+                                                ...todo,
+                                                archived: false,
+                                        }),
+                                );
+                                setTodos(todosWithoutArchived);
+                        } catch (e) {
+                                console.error(
+                                        "Failed to load todos from localStorage",
+                                        e,
+                                );
+                        }
+                }
+        }, []);
 
-  const toggleTodo = (id: string) => {
-    setTodos(todos.map((todo) => (todo.id === id ? { ...todo, completed: !todo.completed } : todo)))
-  }
+        // Save todos to localStorage whenever they change
+        useEffect(() => {
+                if (todos.length > 0 || initialTodos.length > 0) {
+                        localStorage.setItem(
+                                "infinite-todos",
+                                JSON.stringify(todos),
+                        );
+                }
+        }, [todos]);
 
-  const addTodo = (e: React.FormEvent) => {
-    e.preventDefault()
-    if (newTodoText.trim()) {
-      const newTodoItem: Todo = {
-        id: Date.now().toString(),
-        text: newTodoText.trim(),
-        completed: false,
-      }
-      setTodos([...todos, newTodoItem])
-      setNewTodoText("")
-      setShowAddModal(false)
-    }
-  }
+        // Cleanup archive timeouts on unmount
+        useEffect(() => {
+                return () => {
+                        Object.values(archiveTimeouts.current).forEach(
+                                (timeout) => {
+                                        clearTimeout(timeout);
+                                },
+                        );
+                        archiveTimeouts.current = {};
+                };
+        }, []);
 
-  const handleDragStart = (e: React.MouseEvent | React.TouchEvent, id: string) => {
-    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX
-    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY
+        // Check if scrolling is needed to show page indicator
+        useEffect(() => {
+                const checkScroll = () => {
+                        if (scrollContainerRef.current) {
+                                const isScrollable =
+                                        scrollContainerRef.current.scrollWidth >
+                                        scrollContainerRef.current.clientWidth;
+                                setShowPageIndicator(isScrollable);
+                        }
+                };
 
-    setDraggedId(id)
-    dragStartPos.current = { x: clientX, y: clientY }
-    setDragPosition({ x: 0, y: 0 })
-  }
+                checkScroll();
+                window.addEventListener("resize", checkScroll);
+                return () => window.removeEventListener("resize", checkScroll);
+        }, [todos]);
 
-  const handleDragMove = (e: React.MouseEvent | React.TouchEvent) => {
-    if (!draggedId) return
+        const toggleTodo = (id: string) => {
+                setTodos(
+                        todos.map((todo) => {
+                                if (todo.id === id) {
+                                        const newCompleted = !todo.completed;
 
-    const clientX = "touches" in e ? e.touches[0].clientX : e.clientX
-    const clientY = "touches" in e ? e.touches[0].clientY : e.clientY
+                                        // Clear existing timeout if any
+                                        if (archiveTimeouts.current[todo.id]) {
+                                                clearTimeout(
+                                                        archiveTimeouts.current[
+                                                                todo.id
+                                                        ],
+                                                );
+                                        }
 
-    const deltaX = clientX - dragStartPos.current.x
-    const deltaY = clientY - dragStartPos.current.y
+                                        // If completing, set timeout to archive after 5 seconds
+                                        if (newCompleted) {
+                                                archiveTimeouts.current[
+                                                        todo.id
+                                                ] = setTimeout(() => {
+                                                        setTodos((prevTodos) =>
+                                                                prevTodos.map(
+                                                                        (t) =>
+                                                                                t.id ===
+                                                                                id
+                                                                                        ? {
+                                                                                                  ...t,
+                                                                                                  archived: true,
+                                                                                          }
+                                                                                        : t,
+                                                                ),
+                                                        );
+                                                }, ARCHIVE_DELAY);
+                                        }
 
-    setDragPosition({ x: deltaX, y: deltaY })
+                                        return {
+                                                ...todo,
+                                                completed: newCompleted,
+                                                archived: false, // Reset archived status if unchecking
+                                        };
+                                }
+                                return todo;
+                        }),
+                );
+        };
 
-    const centerX = window.innerWidth / 2
-    const trashThreshold = 100
-    setIsOverTrash(
-      clientX > centerX - trashThreshold && clientX < centerX + trashThreshold && clientY > window.innerHeight - 200,
-    )
-  }
+        const addTodo = (e: React.FormEvent) => {
+                e.preventDefault();
+                if (newTodoText.trim()) {
+                        const newTodoItem: Todo = {
+                                id: Date.now().toString(),
+                                text: newTodoText.trim(),
+                                completed: false,
+                        };
+                        setTodos([...todos, newTodoItem]);
+                        setNewTodoText("");
+                        setShowAddModal(false);
+                }
+        };
 
-  const handleDragEnd = () => {
-    if (!draggedId) return
+        const handleDragStart = (
+                e: React.MouseEvent | React.TouchEvent,
+                id: string,
+                fromArchive = false,
+        ) => {
+                e.stopPropagation();
+                const clientX =
+                        "touches" in e ? e.touches[0].clientX : e.clientX;
+                const clientY =
+                        "touches" in e ? e.touches[0].clientY : e.clientY;
 
-    if (isOverTrash) {
-      setTodos(todos.filter((todo) => todo.id !== draggedId))
-    }
+                setDraggedId(id);
+                setIsDraggingFromArchive(fromArchive);
+                dragStartPos.current = { x: clientX, y: clientY };
+                setDragPosition({ x: 0, y: 0 });
+                hasDragged.current = false;
 
-    setDraggedId(null)
-    setDragPosition({ x: 0, y: 0 })
-    setIsOverTrash(false)
-  }
+                // Clear archive timeout if dragging this todo
+                if (archiveTimeouts.current[id]) {
+                        clearTimeout(archiveTimeouts.current[id]);
+                        delete archiveTimeouts.current[id];
+                }
+        };
 
-  return (
-    <div
-      className="flex flex-col h-screen bg-background overflow-hidden select-none relative"
-      style={{
-        backgroundImage: `
+        const handleDragMove = (e: React.MouseEvent | React.TouchEvent) => {
+                if (!draggedId) return;
+
+                const clientX =
+                        "touches" in e ? e.touches[0].clientX : e.clientX;
+                const clientY =
+                        "touches" in e ? e.touches[0].clientY : e.clientY;
+
+                const deltaX = clientX - dragStartPos.current.x;
+                const deltaY = clientY - dragStartPos.current.y;
+
+                // Check if we've moved past the drag threshold
+                const distance = Math.sqrt(deltaX * deltaX + deltaY * deltaY);
+                if (distance > DRAG_THRESHOLD) {
+                        hasDragged.current = true;
+                }
+
+                setDragPosition({ x: deltaX, y: deltaY });
+
+                const centerX = window.innerWidth / 2;
+                const trashThreshold = 100;
+                setIsOverTrash(
+                        clientX > centerX - trashThreshold &&
+                                clientX < centerX + trashThreshold &&
+                                clientY > window.innerHeight - 200,
+                );
+        };
+
+        const handleDragEnd = () => {
+                if (!draggedId) return;
+
+                if (isOverTrash) {
+                        setTodos(todos.filter((todo) => todo.id !== draggedId));
+
+                        // Clear timeout if any
+                        if (archiveTimeouts.current[draggedId]) {
+                                clearTimeout(
+                                        archiveTimeouts.current[draggedId],
+                                );
+                                delete archiveTimeouts.current[draggedId];
+                        }
+                } else if (isDraggingFromArchive) {
+                        // Dropped outside trash while dragging from archive - restore to main list
+                        setTodos(
+                                todos.map((todo) =>
+                                        todo.id === draggedId
+                                                ? {
+                                                          ...todo,
+                                                          archived: false,
+                                                  }
+                                                : todo,
+                                ),
+                        );
+                }
+
+                setDraggedId(null);
+                setDragPosition({ x: 0, y: 0 });
+                setIsOverTrash(false);
+                setIsDraggingFromArchive(false);
+        };
+
+        const handleButtonClick = (e: React.MouseEvent, id: string) => {
+                e.stopPropagation();
+                // Only toggle if it was a click, not a drag
+                if (!hasDragged.current) {
+                        toggleTodo(id);
+                }
+        };
+
+        return (
+                <div
+                        className="flex flex-col h-screen bg-background overflow-hidden select-none relative"
+                        style={{
+                                backgroundImage: `
           linear-gradient(to right, rgba(0, 0, 0, 0.05) 1px, transparent 1px),
           linear-gradient(to bottom, rgba(0, 0, 0, 0.05) 1px, transparent 1px)
         `,
-        backgroundSize: "32px 32px",
-      }}
-      onMouseMove={handleDragMove}
-      onMouseUp={handleDragEnd}
-      onTouchMove={handleDragMove}
-      onTouchEnd={handleDragEnd}
-    >
-      <div className="flex flex-col items-center pt-12 md:pt-16 pb-8">
-        <h1 className="font-spraypaint text-5xl md:text-7xl text-foreground tracking-tight mb-4">INFINITE TODOS</h1>
-        <div className="flex items-center gap-2 px-2">
-          <kbd className="font-mono text-xs md:text-sm font-bold bg-foreground text-background px-2 py-1">⌘A</kbd>
-          <span className="font-sans text-xs md:text-sm text-muted-foreground">NEW TODO</span>
-        </div>
-      </div>
-
-      <div
-        ref={scrollContainerRef}
-        className="hidden md:flex overflow-x-auto flex-1 items-center px-8 gap-6 scrollbar-hide relative"
-        style={{
-          scrollbarWidth: "none",
-          msOverflowStyle: "none",
-        }}
-      >
-        {extendedTodos.length > 0 ? (
-          <div className="flex gap-6 py-8">
-            {extendedTodos.map((todo, index) => (
-              <div
-                key={`${todo.id}-${index}`}
-                className={cn(
-                  "flex-shrink-0 flex items-center gap-4 group cursor-grab active:cursor-grabbing transition-transform hover:translate-y-[-2px]",
-                  draggedId === todo.id && "opacity-0",
-                )}
-                onMouseDown={(e) => handleDragStart(e, todo.id)}
-                onTouchStart={(e) => handleDragStart(e, todo.id)}
-              >
-                <button
-                  onClick={() => toggleTodo(todo.id)}
-                  className={cn(
-                    "w-10 h-10 border-4 border-foreground bg-background flex items-center justify-center flex-shrink-0 transition-all hover:scale-110 active:scale-95 shadow-[2px_2px_0_0_rgba(0,0,0,1)] hover:shadow-[3px_3px_0_0_rgba(0,0,0,1)]",
-                    todo.completed && "bg-foreground",
-                  )}
+                                backgroundSize: "32px 32px",
+                        }}
+                        onMouseMove={handleDragMove}
+                        onMouseUp={handleDragEnd}
+                        onTouchMove={handleDragMove}
+                        onTouchEnd={handleDragEnd}
                 >
-                  {todo.completed && (
-                    <svg width="20" height="20" viewBox="0 0 16 16" fill="none" className="text-background">
-                      <path
-                        d="M13 4L6 11L3 8"
-                        stroke="currentColor"
-                        strokeWidth="3"
-                        strokeLinecap="square"
-                        strokeLinejoin="miter"
-                      />
-                    </svg>
-                  )}
-                </button>
-                <span
-                  className={cn(
-                    "font-spraypaint text-3xl whitespace-nowrap transition-all",
-                    todo.completed ? "text-muted-foreground line-through opacity-40" : "text-foreground",
-                  )}
-                >
-                  {todo.text}
-                </span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="flex items-center justify-center w-full">
-            <p className="font-spraypaint text-2xl text-muted-foreground">Press ⌘A to add your first todo</p>
-          </div>
-        )}
-      </div>
+                        <div className="flex flex-col items-center justify-center h-1/4 relative w-full">
+                                <h1 className="font-spraypaint text-6xl md:text-8xl text-foreground tracking-tight mb-3 text-center">
+                                        INFINITE TODOS
+                                </h1>
 
-      <div className="md:hidden overflow-y-auto flex-1 px-4 py-8 relative">
-        {todos.length > 0 ? (
-          <div className="flex flex-col gap-5">
-            {todos.map((todo) => (
-              <div
-                key={todo.id}
-                className={cn(
-                  "flex items-center gap-4 group cursor-grab active:cursor-grabbing transition-transform active:scale-95",
-                  draggedId === todo.id && "opacity-0",
-                )}
-                onMouseDown={(e) => handleDragStart(e, todo.id)}
-                onTouchStart={(e) => handleDragStart(e, todo.id)}
-              >
-                <button
-                  onClick={() => toggleTodo(todo.id)}
-                  className={cn(
-                    "w-10 h-10 border-4 border-foreground bg-background flex items-center justify-center flex-shrink-0 transition-all hover:scale-110 active:scale-95 shadow-[2px_2px_0_0_rgba(0,0,0,1)]",
-                    todo.completed && "bg-foreground",
-                  )}
-                >
-                  {todo.completed && (
-                    <svg width="20" height="20" viewBox="0 0 16 16" fill="none" className="text-background">
-                      <path
-                        d="M13 4L6 11L3 8"
-                        stroke="currentColor"
-                        strokeWidth="3"
-                        strokeLinecap="square"
-                        strokeLinejoin="miter"
-                      />
-                    </svg>
-                  )}
-                </button>
-                <span
-                  className={cn(
-                    "font-spraypaint text-2xl transition-all",
-                    todo.completed ? "text-muted-foreground line-through opacity-40" : "text-foreground",
-                  )}
-                >
-                  {todo.text}
-                </span>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div className="flex items-center justify-center h-full">
-            <p className="font-spraypaint text-xl text-muted-foreground text-center">Press ⌘A to add your first todo</p>
-          </div>
-        )}
-      </div>
+                                {/* Archive - Upper Right Corner */}
+                                {todos.some((t) => t.archived) && (
+                                        <div className="absolute top-4 right-4 md:top-6 md:right-6 flex flex-col gap-2 max-w-[300px] md:max-w-[400px]">
+                                                <div className="font-spraypaint text-sm md:text-base text-muted-foreground mb-1 border-b-2 border-foreground/20 pb-1">
+                                                        ARCHIVED
+                                                </div>
+                                                {todos
+                                                        .filter(
+                                                                (t) =>
+                                                                        t.archived,
+                                                        )
+                                                        .map((todo) => (
+                                                                <div
+                                                                        key={
+                                                                                todo.id
+                                                                        }
+                                                                        className={cn(
+                                                                                "flex items-center gap-2 md:gap-3 cursor-grab active:cursor-grabbing transition-all duration-150 ease-out hover:scale-105 group bg-background/80 border-2 border-foreground/20 p-2 rounded-lg",
+                                                                                draggedId ===
+                                                                                        todo.id &&
+                                                                                        "opacity-0",
+                                                                        )}
+                                                                        onMouseDown={(
+                                                                                e,
+                                                                        ) =>
+                                                                                handleDragStart(
+                                                                                        e,
+                                                                                        todo.id,
+                                                                                        true,
+                                                                                )
+                                                                        }
+                                                                        onTouchStart={(
+                                                                                e,
+                                                                        ) =>
+                                                                                handleDragStart(
+                                                                                        e,
+                                                                                        todo.id,
+                                                                                        true,
+                                                                                )
+                                                                        }
+                                                                >
+                                                                        <div className="w-6 h-6 md:w-8 md:h-8 border-2 border-muted-foreground bg-muted-foreground/20 flex items-center justify-center flex-shrink-0">
+                                                                                <svg
+                                                                                        width="12"
+                                                                                        height="12"
+                                                                                        viewBox="0 0 16 16"
+                                                                                        fill="none"
+                                                                                        className="text-muted-foreground"
+                                                                                >
+                                                                                        <path
+                                                                                                d="M13 4L6 11L3 8"
+                                                                                                stroke="currentColor"
+                                                                                                strokeWidth="3"
+                                                                                                strokeLinecap="square"
+                                                                                                strokeLinejoin="miter"
+                                                                                        />
+                                                                                </svg>
+                                                                        </div>
+                                                                        <span className="font-sans text-sm md:text-base text-muted-foreground line-through truncate">
+                                                                                {
+                                                                                        todo.text
+                                                                                }
+                                                                        </span>
+                                                                </div>
+                                                        ))}
+                                        </div>
+                                )}
+                        </div>
 
-      {draggedId && (
-        <div
-          className="fixed pointer-events-none z-50 flex items-center gap-4 transition-transform"
-          style={{
-            left: dragStartPos.current.x,
-            top: dragStartPos.current.y,
-            transform: `translate(${dragPosition.x}px, ${dragPosition.y}px) rotate(${Math.min(Math.abs(dragPosition.x) / 10, 5)}deg)`,
-          }}
-        >
-          <div className="w-10 h-10 border-4 border-foreground bg-background shadow-[4px_4px_0_0_rgba(0,0,0,1)]"></div>
-          <span className="font-spraypaint text-3xl md:text-3xl text-foreground whitespace-nowrap">
-            {todos.find((t) => t.id === draggedId)?.text}
-          </span>
-        </div>
-      )}
+                        <div
+                                ref={scrollContainerRef}
+                                className="flex overflow-x-auto overflow-y-hidden h-3/4 items-center px-6 md:px-12 gap-8 scrollbar-hide relative touch-pan-x"
+                                style={{
+                                        scrollbarWidth: "none",
+                                        msOverflowStyle: "none",
+                                }}
+                                onWheel={(e) => {
+                                        // Enable horizontal scroll with scrollwheel on desktop
+                                        if (e.deltaY !== 0) {
+                                                const scrollContainer =
+                                                        e.currentTarget;
+                                                scrollContainer.scrollLeft +=
+                                                        e.deltaY;
+                                                e.preventDefault();
+                                        }
+                                }}
+                        >
+                                {todos.filter((todo) => !todo.archived).length >
+                                0 ? (
+                                        <div className="flex gap-8 md:gap-12 py-10 mx-auto">
+                                                {todos
+                                                        .filter(
+                                                                (todo) =>
+                                                                        !todo.archived,
+                                                        )
+                                                        .map((todo) => (
+                                                                <div
+                                                                        key={
+                                                                                todo.id
+                                                                        }
+                                                                        className={cn(
+                                                                                "flex-shrink-0 flex items-center gap-5 md:gap-6 group active:cursor-grabbing transition-all hover:translate-y-[-4px] hover:scale-105",
+                                                                                draggedId ===
+                                                                                        todo.id &&
+                                                                                        "opacity-0",
+                                                                        )}
+                                                                >
+                                                                        <button
+                                                                                onMouseDown={(
+                                                                                        e,
+                                                                                ) => {
+                                                                                        hasDragged.current = false;
+                                                                                }}
+                                                                                onClick={(
+                                                                                        e,
+                                                                                ) =>
+                                                                                        handleButtonClick(
+                                                                                                e,
+                                                                                                todo.id,
+                                                                                        )
+                                                                                }
+                                                                                className={cn(
+                                                                                        "w-12 h-12 md:w-14 md:h-14 border-4 border-foreground bg-background flex items-center justify-center flex-shrink-0 transition-all duration-150 ease-out hover:scale-110 active:scale-95 shadow-[4px_4px_0_0_rgba(0,0,0,1)] hover:shadow-[5px_5px_0_0_rgba(0,0,0,1)]",
+                                                                                        todo.completed &&
+                                                                                                "bg-foreground scale-110 rotate-3",
+                                                                                )}
+                                                                        >
+                                                                                {todo.completed && (
+                                                                                        <svg
+                                                                                                width="24"
+                                                                                                height="24"
+                                                                                                viewBox="0 0 16 16"
+                                                                                                fill="none"
+                                                                                                className="text-background animate-checkmark"
+                                                                                        >
+                                                                                                <path
+                                                                                                        d="M13 4L6 11L3 8"
+                                                                                                        stroke="currentColor"
+                                                                                                        strokeWidth="3"
+                                                                                                        strokeLinecap="square"
+                                                                                                        strokeLinejoin="miter"
+                                                                                                />
+                                                                                        </svg>
+                                                                                )}
+                                                                        </button>
+                                                                        <div
+                                                                                className="flex items-center cursor-grab"
+                                                                                onMouseDown={(
+                                                                                        e,
+                                                                                ) =>
+                                                                                        handleDragStart(
+                                                                                                e,
+                                                                                                todo.id,
+                                                                                                false,
+                                                                                        )
+                                                                                }
+                                                                                onTouchStart={(
+                                                                                        e,
+                                                                                ) =>
+                                                                                        handleDragStart(
+                                                                                                e,
+                                                                                                todo.id,
+                                                                                                false,
+                                                                                        )
+                                                                                }
+                                                                        >
+                                                                                <span
+                                                                                        className={cn(
+                                                                                                "font-spraypaint text-4xl md:text-5xl lg:text-6xl whitespace-nowrap transition-all duration-150 ease-out",
+                                                                                                todo.completed
+                                                                                                        ? "text-muted-foreground opacity-50 scale-95 translate-x-1 line-through"
+                                                                                                        : "text-foreground scale-100 translate-x-0",
+                                                                                        )}
+                                                                                >
+                                                                                        {
+                                                                                                todo.text
+                                                                                        }
+                                                                                </span>
+                                                                        </div>
+                                                                </div>
+                                                        ))}
+                                        </div>
+                                ) : (
+                                        <div className="flex items-center justify-center w-full h-full">
+                                                <p className="font-spraypaint text-3xl md:text-4xl text-muted-foreground text-center">
+                                                        Press ⌘A to add your
+                                                        first todo
+                                                </p>
+                                        </div>
+                                )}
 
-      {draggedId && (
-        <div
-          className={cn(
-            "fixed bottom-12 md:bottom-16 left-1/2 -translate-x-1/2 transition-all duration-300 ease-out z-40",
-            isOverTrash ? "scale-125 opacity-100" : "scale-100 opacity-60",
-          )}
-        >
-          <div
-            className={cn(
-              "relative w-24 h-24 border-4 border-foreground bg-background transition-all flex items-center justify-center shadow-[4px_4px_0_0_rgba(0,0,0,1)]",
-              isOverTrash && "bg-destructive border-destructive animate-pulse shadow-[6px_6px_0_0_rgba(0,0,0,1)]",
-            )}
-          >
-            <svg
-              width="48"
-              height="48"
-              viewBox="0 0 24 24"
-              fill="none"
-              className={cn(
-                "transition-all",
-                isOverTrash ? "text-destructive-foreground scale-110" : "text-foreground",
-              )}
-            >
-              <path
-                d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6"
-                stroke="currentColor"
-                strokeWidth="2.5"
-                strokeLinecap="square"
-                strokeLinejoin="miter"
-              />
-            </svg>
-          </div>
-          {isOverTrash && (
-            <div className="absolute -top-14 left-1/2 -translate-x-1/2 whitespace-nowrap font-spraypaint text-xl text-destructive px-3 py-1 bg-background border-4 border-destructive shadow-[2px_2px_0_0_rgba(0,0,0,1)]">
-              DROP HERE!
-            </div>
-          )}
-        </div>
-      )}
+                                {/* Page Indicator - Bottom Left */}
+                                {showPageIndicator &&
+                                        todos.filter((todo) => !todo.archived)
+                                                .length > 0 && (
+                                                <div className="absolute bottom-4 left-4 md:bottom-6 md:left-6 flex items-center gap-2">
+                                                        <div className="w-2 h-2 md:w-2.5 md:h-2.5 bg-foreground rounded-full animate-pulse"></div>
+                                                        <span className="font-sans text-xs md:text-sm text-muted-foreground font-medium tracking-wide">
+                                                                SCROLL FOR MORE
+                                                        </span>
+                                                </div>
+                                        )}
+                        </div>
 
-      {showAddModal && (
-        <div
-          className="fixed inset-0 bg-foreground/50 z-50 flex items-center justify-center p-4"
-          onClick={() => {
-            setShowAddModal(false)
-            setNewTodoText("")
-          }}
-        >
-          <div
-            className="bg-background border-4 border-foreground p-6 md:p-8 shadow-[8px_8px_0_0_rgba(0,0,0,1)] max-w-md w-full"
-            onClick={(e) => e.stopPropagation()}
-          >
-            <h2 className="font-spraypaint text-3xl md:text-4xl text-foreground mb-6">NEW TODO</h2>
-            <form onSubmit={addTodo} className="flex flex-col gap-4">
-              <input
-                ref={inputRef}
-                type="text"
-                value={newTodoText}
-                onChange={(e) => setNewTodoText(e.target.value)}
-                placeholder="What needs to be done?"
-                className="px-4 py-3 border-4 border-foreground bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:translate-x-[2px] focus:translate-y-[2px] focus:shadow-none font-sans text-lg transition-all shadow-[4px_4px_0_0_rgba(0,0,0,1)]"
-              />
-              <div className="flex gap-3">
-                <button
-                  type="submit"
-                  className="flex-1 px-6 py-3 bg-foreground text-background border-4 border-foreground font-sans font-bold hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all shadow-[4px_4px_0_0_rgba(0,0,0,1)] active:translate-x-[4px] active:translate-y-[4px]"
-                >
-                  ADD
-                </button>
-                <button
-                  type="button"
-                  onClick={() => {
-                    setShowAddModal(false)
-                    setNewTodoText("")
-                  }}
-                  className="px-6 py-3 bg-background text-foreground border-4 border-foreground font-sans font-bold hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all shadow-[4px_4px_0_0_rgba(0,0,0,1)] active:translate-x-[4px] active:translate-y-[4px]"
-                >
-                  ESC
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
+                        {draggedId && (
+                                <div
+                                        className="fixed pointer-events-none z-50 flex items-center gap-5 md:gap-6 transition-transform duration-75 ease-out"
+                                        style={{
+                                                left: dragStartPos.current.x,
+                                                top: dragStartPos.current.y,
+                                                transform: `translate(${dragPosition.x}px, ${dragPosition.y}px) rotate(${Math.min(
+                                                        Math.abs(
+                                                                dragPosition.x,
+                                                        ) / 10,
+                                                        5,
+                                                )}deg) scale(1.05)`,
+                                        }}
+                                >
+                                        <div className="w-12 h-12 md:w-14 md:h-14 border-4 border-foreground bg-background shadow-[6px_6px_0_0_rgba(0,0,0,1)]"></div>
+                                        <span className="font-spraypaint text-4xl md:text-5xl text-foreground whitespace-nowrap">
+                                                {
+                                                        todos.find(
+                                                                (t) =>
+                                                                        t.id ===
+                                                                        draggedId,
+                                                        )?.text
+                                                }
+                                        </span>
+                                </div>
+                        )}
 
-      <style jsx>{`
-        .scrollbar-hide::-webkit-scrollbar {
-          display: none;
-        }
-      `}</style>
-    </div>
-  )
+                        {draggedId && (
+                                <div
+                                        className={cn(
+                                                "fixed bottom-16 md:bottom-20 left-1/2 -translate-x-1/2 transition-all duration-150 ease-out z-40",
+                                                isOverTrash
+                                                        ? "scale-130 opacity-100"
+                                                        : "scale-100 opacity-70",
+                                        )}
+                                >
+                                        <div
+                                                className={cn(
+                                                        "relative w-28 h-28 border-4 border-foreground bg-background transition-all duration-150 ease-out flex items-center justify-center shadow-[6px_6px_0_0_rgba(0,0,0,1)]",
+                                                        isOverTrash &&
+                                                                "bg-destructive border-destructive animate-pulse shadow-[8px_8px_0_0_rgba(0,0,0,1)]",
+                                                )}
+                                        >
+                                                <svg
+                                                        width="56"
+                                                        height="56"
+                                                        viewBox="0 0 24 24"
+                                                        fill="none"
+                                                        className={cn(
+                                                                "transition-all duration-150 ease-out",
+                                                                isOverTrash
+                                                                        ? "text-destructive-foreground scale-110"
+                                                                        : "text-foreground",
+                                                        )}
+                                                >
+                                                        <path
+                                                                d="M3 6h18M19 6v14a2 2 0 01-2 2H7a2 2 0 01-2-2V6m3 0V4a2 2 0 012-2h4a2 2 0 012 2v2M10 11v6M14 11v6"
+                                                                stroke="currentColor"
+                                                                strokeWidth="2.5"
+                                                                strokeLinecap="square"
+                                                                strokeLinejoin="miter"
+                                                        />
+                                                </svg>
+                                        </div>
+                                        {isOverTrash && (
+                                                <div className="absolute -top-16 left-1/2 -translate-x-1/2 whitespace-nowrap font-spraypaint text-2xl text-destructive px-4 py-2 bg-background border-4 border-destructive shadow-[3px_3px_0_0_rgba(0,0,0,1)] transition-all duration-150 ease-out">
+                                                        DROP HERE!
+                                                </div>
+                                        )}
+                                </div>
+                        )}
+
+                        {showAddModal && (
+                                <div
+                                        className="fixed inset-0 bg-foreground/50 z-50 flex items-center justify-center p-4 backdrop-blur-sm"
+                                        onClick={() => {
+                                                setShowAddModal(false);
+                                                setNewTodoText("");
+                                        }}
+                                >
+                                        <div
+                                                className="bg-background border-4 border-foreground p-8 md:p-10 shadow-[10px_10px_0_0_rgba(0,0,0,1)] max-w-lg w-full"
+                                                onClick={(e) =>
+                                                        e.stopPropagation()
+                                                }
+                                        >
+                                                <h2 className="font-spraypaint text-4xl md:text-5xl text-foreground mb-8 text-center">
+                                                        NEW TODO
+                                                </h2>
+                                                <form
+                                                        onSubmit={addTodo}
+                                                        className="flex flex-col gap-5"
+                                                >
+                                                        <input
+                                                                ref={inputRef}
+                                                                type="text"
+                                                                value={
+                                                                        newTodoText
+                                                                }
+                                                                onChange={(e) =>
+                                                                        setNewTodoText(
+                                                                                e
+                                                                                        .target
+                                                                                        .value,
+                                                                        )
+                                                                }
+                                                                placeholder="What needs to be done?"
+                                                                className="px-5 py-4 border-4 border-foreground bg-background text-foreground placeholder:text-muted-foreground focus:outline-none focus:translate-x-[2px] focus:translate-y-[2px] focus:shadow-none font-sans text-xl transition-all shadow-[5px_5px_0_0_rgba(0,0,0,1)]"
+                                                        />
+                                                        <div className="flex gap-4">
+                                                                <button
+                                                                        type="submit"
+                                                                        className="flex-1 px-8 py-4 bg-foreground text-background border-4 border-foreground font-sans font-bold text-lg hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all shadow-[5px_5px_0_0_rgba(0,0,0,1)] active:translate-x-[4px] active:translate-y-[4px]"
+                                                                >
+                                                                        ADD
+                                                                </button>
+                                                                <button
+                                                                        type="button"
+                                                                        onClick={() => {
+                                                                                setShowAddModal(
+                                                                                        false,
+                                                                                );
+                                                                                setNewTodoText(
+                                                                                        "",
+                                                                                );
+                                                                        }}
+                                                                        className="px-8 py-4 bg-background text-foreground border-4 border-foreground font-sans font-bold text-lg hover:translate-x-[2px] hover:translate-y-[2px] hover:shadow-none transition-all shadow-[5px_5px_0_0_rgba(0,0,0,1)] active:translate-x-[4px] active:translate-y-[4px]"
+                                                                >
+                                                                        ESC
+                                                                </button>
+                                                        </div>
+                                                </form>
+                                        </div>
+                                </div>
+                        )}
+
+                        <style jsx>{`
+                                .scrollbar-hide::-webkit-scrollbar {
+                                        display: none;
+                                }
+
+                                @keyframes checkmark {
+                                        0% {
+                                                transform: scale(0)
+                                                        rotate(-45deg);
+                                                opacity: 0;
+                                        }
+                                        50% {
+                                                transform: scale(1.2)
+                                                        rotate(10deg);
+                                        }
+                                        100% {
+                                                transform: scale(1) rotate(0deg);
+                                                opacity: 1;
+                                        }
+                                }
+
+                                .animate-checkmark {
+                                        animation: checkmark 0.2s
+                                                cubic-bezier(
+                                                        0.175,
+                                                        0.885,
+                                                        0.32,
+                                                        1.275
+                                                )
+                                                forwards;
+                                }
+                        `}</style>
+                </div>
+        );
 }
