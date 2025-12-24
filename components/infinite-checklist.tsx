@@ -51,12 +51,10 @@ export function InfiniteChecklist() {
                                 e.preventDefault();
                                 setShowInput(true);
                                 setInputFocusedViaShortcut(true);
-                                setTimeout(() => {
-                                        inputRef.current?.focus();
-                                }, 50);
+                                inputRef.current?.focus();
                                 setTimeout(
                                         () => setInputFocusedViaShortcut(false),
-                                        300,
+                                        150,
                                 );
                         }
                         if ((e.metaKey || e.ctrlKey) && e.key === "r") {
@@ -608,25 +606,20 @@ export function InfiniteChecklist() {
                                                                 }
                                                         }}
                                                         onBlur={() => {
-                                                                // Hide input after a short delay if not typing
-                                                                setTimeout(
-                                                                        () => {
-                                                                                if (
-                                                                                        !newTodoText.trim()
-                                                                                ) {
-                                                                                        setShowInput(
-                                                                                                false,
-                                                                                        );
-                                                                                }
-                                                                        },
-                                                                        150,
-                                                                );
+                                                                // Hide input immediately if not typing
+                                                                if (
+                                                                        !newTodoText.trim()
+                                                                ) {
+                                                                        setShowInput(
+                                                                                false,
+                                                                        );
+                                                                }
                                                         }}
                                                         placeholder="+ Add new todo..."
                                                         className={cn(
-                                                                "w-64 md:w-80 px-4 py-2 text-sm border-2 bg-background/60 backdrop-blur-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:bg-background/80 transition-all duration-200 font-sans",
+                                                                "w-64 md:w-80 px-4 py-2 text-sm border-2 bg-background/60 backdrop-blur-sm text-foreground placeholder:text-muted-foreground/50 focus:outline-none focus:bg-background/90 focus:border-foreground/80 transition-all duration-100 ease-out font-sans",
                                                                 inputFocusedViaShortcut
-                                                                        ? "border-foreground scale-105 shadow-[4px_4px_0_0_rgba(0,0,0,0.15)]"
+                                                                        ? "border-foreground scale-105 shadow-[6px_6px_0_0_rgba(0,0,0,0.2)]"
                                                                         : "border-transparent",
                                                         )}
                                                 />

@@ -13,7 +13,7 @@ const _rubikSprayPaint = Rubik_Spray_Paint({
 });
 
 export const metadata: Metadata = {
-        title: "Infinite Checklist",
+        title: "checklisting... ✅",
         description: "An infinite carousel checklist experience",
         generator: "v0.app",
         icons: {
