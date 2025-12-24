@@ -283,7 +283,7 @@ export function InfiniteChecklist() {
                 >
                         <div className="flex flex-col items-center justify-center h-1/4 relative w-full">
                                 <h1 className="font-spraypaint text-6xl md:text-8xl text-foreground tracking-tight mb-3 text-center">
-                                        INFINITE TODOS
+                                        checklisting... ✅
                                 </h1>
 
                                 {/* Archive - Upper Right Corner */}
