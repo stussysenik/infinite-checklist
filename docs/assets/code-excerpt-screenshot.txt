@@ -1,0 +1,85 @@
+Repository: infinite-checklist
+Generated: 2026-03-03
+
+Source: app/globals.css
+
+@import "tailwindcss";
+@import "tw-animate-css";
+/* Mobile-specific optimizations */
+@layer utilities {
+        /* Disable tap highlight color on mobile */
+        .no-tap-highlight {
+                -webkit-tap-highlight-color: transparent;
+                tap-highlight-color: transparent;
+        }
+        /* Improve touch response on mobile */
+        .touch-optimized {
+                touch-action: manipulation;
+                -webkit-touch-callout: none;
+                -webkit-user-select: none;
+                user-select: none;
+        }
+        /* Custom scrollbar for better mobile experience */
+        .custom-scrollbar {
+                scrollbar-width: none;
+                -ms-overflow-style: none;
+        }
+        .custom-scrollbar::-webkit-scrollbar {
+                display: none;
+        }
+        /* Brutalist minimalist scale utilities */
+        .scale-102 {
+                transform: scale(1.02);
+        }
+        .scale-105 {
+                transform: scale(1.05);
+        }
+        /* Brutalist minimalist border utilities */
+        .border-3 {
+                border-width: 3px;
+        }
+}
+@custom-variant dark (&:is(.dark *));
+:root {
+        --background: oklch(0.98 0 0);
+        --foreground: oklch(0.05 0 0);
+        --card: oklch(1 0 0);
+        --card-foreground: oklch(0.145 0 0);
+        --popover: oklch(1 0 0);
+        --popover-foreground: oklch(0.145 0 0);
+        --primary: oklch(0.205 0 0);
+        --primary-foreground: oklch(0.985 0 0);
+        --secondary: oklch(0.97 0 0);
+        --secondary-foreground: oklch(0.205 0 0);
+        --muted: oklch(0.92 0 0);
+        --muted-foreground: oklch(0.5 0 0);
+        --accent: oklch(0.97 0 0);
+        --accent-foreground: oklch(0.205 0 0);
+        --destructive: oklch(0.55 0.22 25);
+        --destructive-foreground: oklch(0.98 0 0);
+        --border: oklch(0.05 0 0);
+        --input: oklch(0.922 0 0);
+        --ring: oklch(0.708 0 0);
+        --chart-1: oklch(0.646 0.222 41.116);
+        --chart-2: oklch(0.6 0.118 184.704);
+        --chart-3: oklch(0.398 0.07 227.392);
+        --chart-4: oklch(0.828 0.189 84.429);
+        --chart-5: oklch(0.769 0.188 70.08);
+        --radius: 0.625rem;
+        --sidebar: oklch(0.985 0 0);
+        --sidebar-foreground: oklch(0.145 0 0);
+        --sidebar-primary: oklch(0.205 0 0);
+        --sidebar-primary-foreground: oklch(0.985 0 0);
+        --sidebar-accent: oklch(0.97 0 0);
+        --sidebar-accent-foreground: oklch(0.205 0 0);
+        --sidebar-border: oklch(0.922 0 0);
+        --sidebar-ring: oklch(0.708 0 0);
+}
+.dark {
+        --background: oklch(0.145 0 0);
+        --foreground: oklch(0.985 0 0);
+        --card: oklch(0.145 0 0);
+        --card-foreground: oklch(0.985 0 0);
+        --popover: oklch(0.145 0 0);
+        --popover-foreground: oklch(0.985 0 0);
+        --primary: oklch(0.985 0 0);

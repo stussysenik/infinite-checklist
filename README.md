@@ -28,3 +28,8 @@ Continue building your app on:
 2. Deploy your chats from the v0 interface
 3. Changes are automatically pushed to this repository
 4. Vercel deploys the latest version from this repository
+
+## Documentation & Proof
+- Project narrative: [docs/PROJECT_NARRATIVE.md](docs/PROJECT_NARRATIVE.md)
+- CI guard: [.github/workflows/documentation-proof.yml](.github/workflows/documentation-proof.yml)
+- This project documentation emphasizes user journey, design methodology, progress, tech stack, key concepts, and implementation evidence.
