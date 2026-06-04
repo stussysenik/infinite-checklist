@@ -1,16 +1,16 @@
 import type React from "react";
 import type { Metadata } from "next";
 import {
-        Geist,
-        Geist_Mono,
         Rubik_Spray_Paint,
         Open_Sans,
+        Schoolbell,
+        Fontdiner_Swanky,
 } from "next/font/google";
-import { Analytics } from "@vercel/analytics/next";
 import "./globals.css";
 
-const _geist = Geist({ subsets: ["latin"] });
-const _geistMono = Geist_Mono({ subsets: ["latin"] });
+// Only the two fonts actually used are loaded. Geist/Geist_Mono were dead
+// imports; @vercel/analytics was dropped — tracking weight is off-ethos for a
+// minimalist, client-only toy and it counts against the first-load budget.
 const _rubikSprayPaint = Rubik_Spray_Paint({
         weight: "400",
         subsets: ["latin"],
@@ -19,6 +19,18 @@ const _rubikSprayPaint = Rubik_Spray_Paint({
 const _openSans = Open_Sans({
         subsets: ["latin"],
         variable: "--font-opensans",
+});
+// Schoolbell — the handwritten "kindergarten" face for the todo items.
+const _schoolbell = Schoolbell({
+        weight: "400",
+        subsets: ["latin"],
+        variable: "--font-schoolbell",
+});
+// Fontdiner Swanky — the retro-diner display face for the empty-state prompt.
+const _fontdinerSwanky = Fontdiner_Swanky({
+        weight: "400",
+        subsets: ["latin"],
+        variable: "--font-fontdiner",
 });
 
 export const metadata: Metadata = {
@@ -57,10 +69,9 @@ export default function RootLayout({
                                 />
                         </head>
                         <body
-                                className={`font-sans antialiased ${_rubikSprayPaint.variable} ${_openSans.variable}`}
+                                className={`font-sans antialiased ${_rubikSprayPaint.variable} ${_openSans.variable} ${_schoolbell.variable} ${_fontdinerSwanky.variable}`}
                         >
                                 {children}
-                                <Analytics />
                         </body>
                 </html>
         );
