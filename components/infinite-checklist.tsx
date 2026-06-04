@@ -309,7 +309,7 @@ export function InfiniteChecklist() {
 
                         {/* Centered Hero Cluster - iA Writer Focus */}
                         <div className="flex flex-col items-center justify-center pt-28 pb-10 md:pt-48 md:pb-24 w-full">
-                                <div className="flex items-center justify-center gap-4 md:gap-10 px-4 max-w-full">
+                                <div className="flex items-center justify-center gap-3 md:gap-10 px-4 max-w-full">
                                         <h1
                                                 font="fontdiner"
                                                 text="fluid-display"
@@ -378,7 +378,7 @@ export function InfiniteChecklist() {
 
                                 <div
                                         ref={scrollContainerRef}
-                                        className="carousel-track flex overflow-x-auto overflow-y-hidden w-full items-center px-[25vw] gap-16 md:gap-32 scrollbar-hide relative touch-pan-x snap-x snap-mandatory"
+                                        className="carousel-track flex overflow-x-auto overflow-y-hidden w-full items-center gap-16 md:gap-32 scrollbar-hide relative touch-pan-x snap-x snap-mandatory"
                                         style={
                                                 {
                                                         scrollbarWidth: "none",
@@ -497,14 +497,14 @@ export function InfiniteChecklist() {
                                 {!showInput &&
                                         todos.filter((todo) => !todo.archived)
                                                 .length === 0 && (
-                                                <div className="flex flex-col items-center justify-center text-center gap-12">
+                                                <div className="flex flex-col items-center justify-center text-center gap-12 w-full max-w-md px-6">
                                                         <h2
                                                                 className="font-fontdiner text-fluid-display-sm leading-none text-[#16a34a]"
                                                         >
                                                                 no todos yet
                                                         </h2>
 
-                                                        <p className="font-fontdiner text-fluid-lg text-black/80 lowercase tracking-tight">
+                                                        <p className="font-fontdiner text-fluid-lg text-black/80 lowercase tracking-tight text-balance">
                                                                 start by adding your first task
                                                         </p>
 

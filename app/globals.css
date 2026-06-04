@@ -36,8 +36,11 @@
 	--fs-base: 1.0625rem; /* 17px - iA Writer's signature body size */
 	--fs-lg: 1.25rem;   /* 20px */
 	--fs-xl: 1.5rem;    /* 24px */
-	--fs-display-sm: clamp(2.5rem, 6vw, 4rem);
-	--fs-display: clamp(3.5rem, 12vw, 8rem);
+	/* Display roles are fully fluid down to a small floor so the hero wordmark
+	   and empty-state never bleed past the viewport on narrow phones (≤360px).
+	   The 8rem ceiling preserves the bold desktop scale unchanged. */
+	--fs-display-sm: clamp(2.25rem, 6vw, 4rem);
+	--fs-display: clamp(1.6rem, 9vw, 8rem);
 
 	/* GRID UNITS */
 	--unit: 8px;
@@ -58,11 +61,19 @@
 }
 
 /* ---------- base ---------- */
-* {
+/* Minimal reset. Without this the app inherited the UA's 8px <body> margin and
+   content-box sizing, so every `w-full px-*` overran its parent by 2×padding and
+   the whole layout sat inset 8px — the root cause of edge bleed on narrow
+   viewports. border-box + zeroed margins make `w-full`/`100vw` math exact. */
+*,
+::before,
+::after {
+	box-sizing: border-box;
 	border-color: var(--border);
 }
 html,
 body {
+	margin: 0;
 	background-color: var(--background);
 	color: var(--foreground);
 	/* iA Writer Graph Paper: Subtle, technical, technical blue/gray ink */
@@ -108,9 +119,17 @@ body {
 }
 /* Center the carousel when its items fit, but fall back to a scrollable
    start when they overflow — `safe` avoids the auto-margin/justify-center
-   trap that makes the overflowed end unreachable. */
+   trap that makes the overflowed end unreachable.
+
+   The inline padding is authored here (not as a `px-[25vw]` utility) because
+   the constraint engine blocklists arbitrary spacing — so the utility silently
+   generated nothing and the first/last item hard-clipped at the edge. This
+   gives every item room to snap to centre and keeps comfortable edge headroom
+   on every viewport. `scroll-padding` aligns the snap points to that gutter. */
 .carousel-track {
 	justify-content: safe center;
+	padding-inline: clamp(1.5rem, 25vw, 50%);
+	scroll-padding-inline: clamp(1.5rem, 25vw, 50%);
 }
 
 /* ---------- motion (no new motion added; existing pops centralized) ---------- */
