@@ -87,13 +87,13 @@ export function ShortcutsPanel() {
 				onClick={() => setOpen((o) => !o)}
 				aria-label="Keyboard shortcuts"
 				aria-expanded={open}
-				className="w-20 h-20 md:w-24 md:h-24 flex items-center justify-center bg-white border-4 border-black shadow-[8px_8px_0_0_rgba(0,0,0,1)] hover:shadow-[12px_12px_0_0_rgba(0,0,0,1)] hover:-translate-x-1 hover:-translate-y-1 active:translate-x-0 active:translate-y-0 transition-all duration-150 ease-out text-4xl md:text-5xl leading-none select-none"
+				className="w-14 h-14 md:w-24 md:h-24 flex items-center justify-center bg-white border-4 border-black shadow-[4px_4px_0_0_rgba(0,0,0,1)] md:shadow-[8px_8px_0_0_rgba(0,0,0,1)] hover:shadow-[12px_12px_0_0_rgba(0,0,0,1)] hover:-translate-x-1 hover:-translate-y-1 active:translate-x-0 active:translate-y-0 transition-all duration-150 ease-out text-2xl md:text-5xl leading-none select-none"
 			>
 				⌨
 			</button>
 
 			{open && (
-				<div className="fade-in-up absolute top-24 md:top-28 left-0 w-80 max-w-[85vw] bg-white border-4 border-black shadow-[12px_12px_0_0_rgba(0,0,0,1)] p-6">
+				<div className="fade-in-up absolute top-16 md:top-28 left-0 w-80 max-w-[calc(100vw-32px)] bg-white border-4 border-black shadow-[8px_8px_0_0_rgba(0,0,0,1)] md:shadow-[12px_12px_0_0_rgba(0,0,0,1)] p-4 md:p-6 overflow-hidden">
 					<div className="flex items-center justify-between mb-3 border-b-2 border-muted pb-2">
 						<span className="font-spraypaint text-sm uppercase tracking-widest text-black">
 							SHORTCUTS

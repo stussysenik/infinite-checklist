@@ -301,25 +301,26 @@ export function InfiniteChecklist() {
                         onTouchMove={handleDragMove}
                         onTouchEnd={handleDragEnd}
                 >
-                        {/* Keyboard icon - pinned top-left, snapped to graph paper grid */}
-                        <div className="absolute top-8 left-8 z-50">
+                        {/* Keyboard icon - pinned top-left, snapped to graph paper grid
+                            Adjust positioning for mobile to prevent wordmark overlap. */}
+                        <div className="absolute top-4 left-4 md:top-8 md:left-8 z-50">
                                 <ShortcutsPanel />
                         </div>
 
                         {/* Centered Hero Cluster - iA Writer Focus */}
-                        <div className="flex flex-col items-center justify-center pt-32 pb-12 md:pt-48 md:pb-24 w-full">
-                                <div className="flex items-center justify-center gap-6 md:gap-10">
+                        <div className="flex flex-col items-center justify-center pt-28 pb-10 md:pt-48 md:pb-24 w-full">
+                                <div className="flex items-center justify-center gap-4 md:gap-10 px-4 max-w-full">
                                         <h1
                                                 font="fontdiner"
                                                 text="fluid-display"
-                                                className="tracking-tighter leading-none transition-colors duration-500 ease-in-out"
+                                                className="tracking-tighter leading-none transition-colors duration-500 ease-in-out text-center"
                                                 style={{ color: accentColor }}
                                         >
                                                 checklisting...
                                         </h1>
                                         <div
                                                 aria-hidden="true"
-                                                className="inline-flex items-center justify-center shrink-0 w-16 h-16 md:w-24 md:h-24 bg-[#16a34a] border-2 border-black shadow-ia"
+                                                className="inline-flex items-center justify-center shrink-0 w-12 h-12 md:w-24 md:h-24 bg-[#16a34a] border-2 border-black shadow-ia"
                                         >
                                                 <svg
                                                         width="60%"
